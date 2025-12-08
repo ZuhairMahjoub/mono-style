@@ -25,10 +25,14 @@ class OrderStoreRequest extends FormRequest
         ];
 
         
-        if (!Auth::check()) {
-            $rules['customer_name'] = ['required', 'string', 'max:255'];
-            $rules['customer_email'] = ['required', 'email', 'max:255'];
-        }
+    //    if (!$this->user()) {
+    //     $rules['customer_name'] = ['required', 'string', 'max:255'];
+    //     $rules['customer_email'] = ['required', 'email', 'max:255'];
+     if (!Auth::guard('sanctum')->check()) {
+        $rules['customer_name'] = ['required', 'string', 'max:255'];
+        $rules['customer_email'] = ['required', 'email', 'max:255'];
+    }
+    
 
         return $rules;
     }

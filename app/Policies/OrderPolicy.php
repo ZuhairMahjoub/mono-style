@@ -11,19 +11,23 @@ class OrderPolicy
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny(User $user): bool
+    public function viewAny(User $user)
     {
-        return $user->role==='admin';
+        if($user->role==='admin'){
+            return Response::allow();
+        }
+        return Response::deny('Only admins can do that');
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, Order $order): bool
+    public function view(User $user, Order $order)
     {
-        return $user->role=='admin'
-
-        ||($user->role=='user'&&$user->id==$order->user_id);
+        if($user->role === 'admin'|| ($user->role === 'user' && $user->id === $order->user_id)){
+        return Response::allow();
+      }
+        return Response::deny('You are not allowed to view this order');
     }
 
     /**
@@ -37,21 +41,26 @@ class OrderPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Order $order): bool
+    public function update(User $user, Order $order)
     {
-        return $user->role === 'admin'
-        || ($user->role === 'user' && $user->id === $order->user_id);
+      if($user->role === 'admin'|| ($user->role === 'user' && $user->id === $order->user_id)){
+        return Response::allow();
+      }
+        return Response::deny('You are not allowed to update this order');
     }
     
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Order $order): bool
+    public function delete(User $user, Order $order)
 {
-    return $user->role === 'admin'
-        || ($user->role === 'user' && $user->id === $order->user_id);
-}
+    if($user->role === 'admin'|| ($user->role === 'user' && $user->id === $order->user_id)){
+        return Response::allow();
+      }
+        return Response::deny('You are not allowed to delete this order');
+    }
+
 
 
     /**

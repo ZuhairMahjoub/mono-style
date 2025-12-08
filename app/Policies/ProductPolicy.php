@@ -35,17 +35,29 @@ class ProductPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Product $product): bool
+    public function update(User $user, Product $product)
     {
-        return $user->id==$product->user_id||$user->role==='admin';
+       if($user->role=='admin'){
+        return Response::allow();
+       }
+       if($user->id==$product->user_id){
+        return Response::allow();
+       }
+       return Response::deny('You are not allowed to update this product');
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Product $product): bool
+    public function delete(User $user, Product $product)
     {
-        return $user->id==$product->user_id||$user->role==='admin';
+        if($user->role=='admin'){
+            return Response::allow();
+        }
+        if($user->id==$product->user_id){
+            return Response::allow();
+        }
+        return Response::deny('You are not allowed to delete this product');
     }
 
     /**

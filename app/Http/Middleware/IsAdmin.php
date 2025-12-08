@@ -17,7 +17,7 @@ class IsAdmin
     {
         if($request->user()->role!=='admin'){
             return response()->json([
-                'message'=>'Forbidden'
+                'message'=>'Only admins can do that'
             ],403);
         }
         return $next($request);

@@ -8,6 +8,8 @@ use App\Models\Category;
 use Illuminate\Support\Facades\Storage;
 
 use App\Models\Product;
+use Exception;
+use Illuminate\Auth\Access\AuthorizationException;
 //use Illuminate\Container\Attributes\Auth;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -28,7 +30,6 @@ class ProductController extends Controller
             $path=$request->file('image')->store('Products','public');
             $validate_data['image']=$path;
         }
-       
      $product=Product::create($validate_data);
      $product->image_url = $product->image
         ? asset('storage/' . $product->image)
@@ -47,7 +48,6 @@ class ProductController extends Controller
           $product->image = asset('storage/' . $product->image);
           return $product;
         });
-        
         return response()->json([
          'status'=>'success',
          'code'=>200,
@@ -68,7 +68,6 @@ class ProductController extends Controller
           $product->image = asset('storage/' . $product->image);
           return $product;
         });
-        
         return response()->json([
          'status'=>'success',
          'code'=>200,
@@ -84,6 +83,7 @@ class ProductController extends Controller
         ],200);
     }
     public function showProduct($product_id){
+        
      $product= Product::with('category')->where('status', 'approved')->findOrfail($product_id);
      $product->image = asset('storage/' . $product->image);
     return response([
@@ -92,22 +92,10 @@ class ProductController extends Controller
         'message'=>'product retrieved successfully',
         'product'=>$product
     ],200);
-    }
-    // public function delete($product_id){
-    //  $product=Product::findOrFail($product_id);
-    //  if ($product->image && Storage::disk('public')->exists($product->image)) {
-    //     Storage::disk('public')->delete($product->image);
-    // }
+}
 
-    //  $product->delete();
-    //  return response()->json([
-    //  'message'=>'product deleted successfully',
-
-    //  ],204);
-    // }
     public function delete($product_id)
 {
-
     $product = Product::findOrFail($product_id);
       $this->authorize('delete',$product);
       if($product->status!=='approved'){
@@ -115,80 +103,33 @@ class ProductController extends Controller
             'message'=> 'can not delete until admin approves it'
         ],403);
       }
-
     if ($product->image && Storage::disk('public')->exists($product->image)) {
         Storage::disk('public')->delete($product->image);
     }
-
     $product->delete();
-
     return response()->json([
         'message' => 'Product deleted successfully',
     ], 200);
 }
-// public function update(ProductUpdateRequest $request ,$product_id ){
-//     $validate_data=$request->validated();
-//     $product=Product::findOrFail($product_id);
-//     if($request->hasFile('image')){
-//     if ($product->image && Storage::disk('public')->exists($product->image)) {
-//         Storage::disk('public')->delete($product->image);
-//     }
-//        $path=$request->file('image')->store('products','public');
-//        $validate_data['image']=$path;
-//     }
-//     $product->update($validate_data);
-//     $product->refresh();
-//      if ($product->image) {
-//         $product->image = asset('storage/' . $product->image);
-//     }
-//     return response()->json([
-//     'message'=>'products updated successfully',
-//     'product'=>$product
-//     ],200);
-
-    
-// }
-
-
 public function update(ProductUpdateRequest $request, $product_id)
 {
-    
- // التحقق من البيانات
         $validate_data = $request->validated();
-
-        // جلب المنتج
         $product = Product::findOrFail($product_id);
            $this->authorize('update',$product);
-      
       if($product->status!=='approved'){
         return response()->json([
             'message'=> 'can not update it  until admin approves it'
         ],403);
-      }
-
-        // في حال تم رفع صورة جديدة
         if ($request->hasFile('image')) {
-
-            // حذف الصورة القديمة إذا كانت موجودة
             if ($product->image && Storage::disk('public')->exists($product->image)) {
                 Storage::disk('public')->delete($product->image);
             }
-
-            // حفظ الصورة الجديدة داخل مجلد products في disk=public
             $path = $request->file('image')->store('products', 'public');
-
-            // تخزين المسار النسبي فقط داخل قاعدة البيانات
             $validate_data['image'] = $path;
         }
-
-        // تحديث بيانات المنتج
         $product->update($validate_data);
         $product->refresh();
-
-        // إنشاء رابط كامل للصورة
         $imageUrl = $product->image ? asset('storage/' . $product->image) : null;
-
-        // إرجاع الرد بصيغة JSON
         return response()->json([
             'message' => 'Product updated successfully',
             'product' => [
@@ -201,16 +142,14 @@ public function update(ProductUpdateRequest $request, $product_id)
                 'created_at' => $product->created_at,
                 'updated_at' => $product->updated_at,
                 'image' => $product->image,       
-                'image_url' => $imageUrl           // رابط كامل للعرض
+                'image_url' => $imageUrl            
             ]
         ], 200);
-
-  
+    }
 }
 public function adminIndex()
-{
+{ 
     $products = Product::with('category', 'user')->get();
-
     $products->transform(function ($product) {
         $product->image_url = $product->image ? asset('storage/' . $product->image) : null;
         return $product;
@@ -226,11 +165,10 @@ public function adminIndex()
     ]);
 }
 public function pending()
-{
+{  
     $products = Product::with('category', 'user')
         ->where('status', 'pending')
         ->get();
-
     $products->transform(function ($product) {
         $product->image_url = $product->image ? asset('storage/' . $product->image) : null;
         return $product;
@@ -245,11 +183,9 @@ public function pending()
 public function approve($id)
 {
     $product = Product::findOrFail($id);
-
     $product->update([
         'status' => 'approved'
     ]);
-
     return response()->json([
         'status' => 'success',
         'message' => 'Product approved successfully',
@@ -257,13 +193,11 @@ public function approve($id)
     ]);
 }
 public function reject($id)
-{
+{ 
     $product = Product::findOrFail($id);
-
     $product->update([
         'status' => 'rejected'
     ]);
-
     return response()->json([
         'status' => 'success',
         'message' => 'Product rejected'

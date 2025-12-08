@@ -4,17 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
+use App\Mail\WelcomeMail;
 use App\Models\Category;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 //use Illuminate\Container\Attributes\Auth;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+
 use Illuminate\Support\Facades\Hash;
-
-
+use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
+     use AuthorizesRequests;
     public function getChildrenCategories( $parent_id){
        $children= Category::findOrFail($parent_id);
         $childrenCategories=$children->children()->get();
@@ -39,22 +43,14 @@ class UserController extends Controller
     $validatedData['password'] = Hash::make($validatedData['password']);
 
     $user = User::create($validatedData);
-
+        Mail::to($user->email)->send(new WelcomeMail($user));
     return response()->json([
         'message' => 'Your mono_style account has been created successfully',
         'user' => $user
     ], 201);
 }
-
- 
-
-
-
-
-
-
-
     public function getUsers(){
+        $this->authorize('viewAny',User::class);
        $users= User::all();
        $count= $users->count();
        return response([
@@ -65,7 +61,7 @@ class UserController extends Controller
     }
     public function getUser($user_id){
          $user=User::findOrFail($user_id);
-         
+         $this->authorize('view',$user);
          return response([
             'message'=>'Operation Completed Successfully',
             'user'=>$user
@@ -73,6 +69,7 @@ class UserController extends Controller
     }
     public function update( UserUpdateRequest $request,$user_id){
      $user=User::findOrFail($user_id);
+     $this->authorize('update',$user);
      $user_validate=$request->validated();
       $user->update($user_validate);
       return response([
@@ -82,12 +79,12 @@ class UserController extends Controller
     }
     public function delete($user_id){
       $user= User::findOrFail($user_id);
+      $this->authorize('delete',$user);
       $user->delete();
         return response()->noContent();
-         
     }
    public function deleteall(){
-    User::query()->delete();
+     User::where('role', '!=', 'admin')->delete();
      return response()->noContent();
    }
   public function login(Request $request)
@@ -112,17 +109,17 @@ public function logout( Request $request){
     'message'=>'User Loggedout Successfully'
  ],200);
 }
-
-
-
-
-
-
-
-
-
-
-
-
 }
+
+
+
+
+
+
+
+
+
+
+
+
 

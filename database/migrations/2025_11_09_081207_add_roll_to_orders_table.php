@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('orders', function (Blueprint $table) {
             $table->string('role')->default('guest')->after('total_price');
+              $table->softDeletes();
         });
     }
 
