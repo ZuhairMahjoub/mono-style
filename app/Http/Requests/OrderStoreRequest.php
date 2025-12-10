@@ -20,14 +20,8 @@ class OrderStoreRequest extends FormRequest
             'products.*.id' => ['required', 'integer', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             
-           // 'total_price' => ['required', 'numeric', 'min:0'],
-           // 'status' => ['nullable', 'string'],
         ];
 
-        
-    //    if (!$this->user()) {
-    //     $rules['customer_name'] = ['required', 'string', 'max:255'];
-    //     $rules['customer_email'] = ['required', 'email', 'max:255'];
      if (!Auth::guard('sanctum')->check()) {
         $rules['customer_name'] = ['required', 'string', 'max:255'];
         $rules['customer_email'] = ['required', 'email', 'max:255'];

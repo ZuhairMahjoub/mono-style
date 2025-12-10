@@ -111,42 +111,57 @@ class ProductController extends Controller
         'message' => 'Product deleted successfully',
     ], 200);
 }
+   
+
 public function update(ProductUpdateRequest $request, $product_id)
 {
-        $validate_data = $request->validated();
-        $product = Product::findOrFail($product_id);
-           $this->authorize('update',$product);
-      if($product->status!=='approved'){
+    $validate_data = $request->validated();
+    
+    $product = Product::findOrFail($product_id);
+
+    $this->authorize('update', $product);
+
+    // 1️⃣ check status first
+    if ($product->status !== 'approved') {
         return response()->json([
-            'message'=> 'can not update it  until admin approves it'
-        ],403);
-        if ($request->hasFile('image')) {
-            if ($product->image && Storage::disk('public')->exists($product->image)) {
-                Storage::disk('public')->delete($product->image);
-            }
-            $path = $request->file('image')->store('products', 'public');
-            $validate_data['image'] = $path;
-        }
-        $product->update($validate_data);
-        $product->refresh();
-        $imageUrl = $product->image ? asset('storage/' . $product->image) : null;
-        return response()->json([
-            'message' => 'Product updated successfully',
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'description' => $product->description,
-                'price' => $product->price,
-                'stock' => $product->stock,
-                'category_id' => $product->category_id,
-                'created_at' => $product->created_at,
-                'updated_at' => $product->updated_at,
-                'image' => $product->image,       
-                'image_url' => $imageUrl            
-            ]
-        ], 200);
+            'message' => 'can not update it until admin approves it'
+        ], 403);
     }
+
+    // 2️⃣ update image normally
+    if ($request->hasFile('image')) {
+        if ($product->image && Storage::disk('public')->exists($product->image)) {
+            Storage::disk('public')->delete($product->image);
+        }
+
+        $path = $request->file('image')->store('products', 'public');
+        $validate_data['image'] = $path;
+    }
+
+    // 3️⃣ update other fields
+    $product->update($validate_data);
+
+    $product->refresh();
+
+    $imageUrl = $product->image ? asset('storage/' . $product->image) : null;
+
+    return response()->json([
+        'message' => 'Product updated successfully',
+        'product' => [
+            'id' => $product->id,
+            'name' => $product->name,
+            'description' => $product->description,
+            'price' => $product->price,
+            'stock' => $product->stock,
+            'category_id' => $product->category_id,
+            'created_at' => $product->created_at,
+            'updated_at' => $product->updated_at,
+            'image' => $product->image,
+            'image_url' => $imageUrl
+        ]
+    ], 200);
 }
+
 public function adminIndex()
 { 
     $products = Product::with('category', 'user')->get();

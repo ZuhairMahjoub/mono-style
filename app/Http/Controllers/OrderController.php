@@ -15,65 +15,15 @@ class OrderController extends Controller
 {
     use AuthorizesRequests; //هاد trait موجود داخل الcontroller
 
-    // public function store(OrderStoreRequest $request)
-    // {
-    //     return DB::transaction(function () use ($request) {
-    //         $total_price = 0;
-    //         foreach ($request->products as $product) {
-    //             $pros = Product::findOrFail($product['id']);
-    //             if($pros->status!=='approved'){
-    //         return response()->json([
-    //             'message'=>'This product cannot be ordered because it is not approved yet'
-    //         ],403);
-    //     }
-    //             if($product['quantity']>$pros->stock){
-    //                 return response()->json([
-    //                     'message'=>'Quantity not available',
-    //                     'available_stock'=>$pros->stock
-    //                 ],400);
-    //             }
-    //              $pros->decrement('stock', $product['quantity']);
-
-    //             $total_price += $pros->price * $product['quantity'];
-    //         }
-    //         if (Auth::check()) {
-    //             $order = Order::create([
-    //                 'user_id' => Auth::id(),
-    //                 'total_price' => $total_price,
-    //                 'role'=>'user'
-    //             ]);
-    //         } else {
-    //             $order = Order::create([
-    //                 'customer_name' => $request->customer_name,
-    //                 'customer_email' => $request->customer_email,
-    //                 'total_price' => $total_price,
-    //                  'role' => 'guest'
-    //             ]);
-    //         }
-    //         if ($request->has('products')) {
-    //             foreach ($request->products as $product) {
-    //                 // the benefit of method attach to insert row in pivot table
-    //               $order->products()->attach($product['id'],['quantity'=>$product['quantity']]);
-                    
-    //             }
-    //         }
-    //         return response()->json([
-    //             'message' => 'Operation Completed Successfully',
-    //             'order' => $order->load('products'),
-    //             'total_price' => $total_price,
-    //         ]);
-    //     });
-    // }
-    public function store(OrderStoreRequest $request)
+public function store(OrderStoreRequest $request)
 {
     return DB::transaction(function () use ($request) {
 
         $total_price = 0;
-        $productsData = [];
 
         foreach ($request->products as $product) {
 
-            // قفل الصف لضمان عدم وجود مشاكل تزامن المخزون
+            // قفل المخزون لمنع التزامن
             $pros = Product::lockForUpdate()->findOrFail($product['id']);
 
             // التحقق من حالة المنتج
@@ -83,7 +33,7 @@ class OrderController extends Controller
                 ], 403);
             }
 
-            // التحقق من المخزون
+            // تحقق المخزون
             if ($product['quantity'] > $pros->stock) {
                 return response()->json([
                     'message' => 'Quantity not available',
@@ -93,16 +43,13 @@ class OrderController extends Controller
 
             // تحديث المخزون
             $pros->decrement('stock', $product['quantity']);
-            
-            // تجهيز بيانات pivot table
-            $productsData[$product['id']] = ['quantity' => $product['quantity']];
 
-            // حساب السعر الإجمالي
+            // زيادة السعر الإجمالي
             $total_price += $pros->price * $product['quantity'];
         }
 
-        // التحقق من المستخدم (مسجل أم زائر)
-        $user = Auth::guard('sanctum')->user(); // استخدم guard المناسب (sanctum أو api)
+        // المستخدم (مسجل أو زائر)
+        $user = Auth::guard('sanctum')->user();
 
         $order_data = [
             'total_price' => $total_price,
@@ -119,104 +66,118 @@ class OrderController extends Controller
         // إنشاء الطلب
         $order = Order::create($order_data);
 
-        // إضافة المنتجات للطلب
-        $order->products()->attach($productsData);
+        // إنشاء العناصر (order_items)
+        foreach ($request->products as $product) {
+
+            $pros = Product::find($product['id']);
+
+            $order->items()->create([
+                'product_id' => $pros->id,         // ممكن ينحذف لاحقاً
+                'name'       => $pros->name,       // اسم المنتج وقت الشراء
+                'price'      => $pros->price,      // سعر المنتج وقت الشراء
+                'quantity'   => $product['quantity'],
+            ]);
+        }
 
         return response()->json([
             'message' => 'Operation Completed Successfully',
-            'order' => $order->load('products'),
+            'order' => $order->load('items'),
             'total_price' => $total_price,
         ]);
     });
 }
 
-  
-
 public function update(OrderUpdateRequest $request, Order $order)
 {
     $this->authorize('update', $order);
-    $validated = $request->validated();
 
-    return DB::transaction(function () use ($request, $order, $validated) {
+    return DB::transaction(function () use ($request, $order) {
 
-        $order->load('products');
-
-        //  تحقق من كل المنتجات القديمة (status only)
-        foreach ($order->products as $oldProduct) {
-            if ($oldProduct->status !== 'approved') {
-                return response()->json([
-                    'message' => 'This product cannot be modified because it is not approved yet'
-                ], 403);
+        // 1) أرجع المخزون القديم
+        foreach ($order->items as $item) {
+            if ($item->product_id) {
+                $product = Product::lockForUpdate()->find($item->product_id);
+                if ($product) {
+                    $product->increment('stock', $item->quantity);
+                }
             }
         }
 
-        //  تحقق من كل المنتجات الجديدة (status + stock)
-        foreach ($request->products as $product) {
-            $pros = Product::findOrFail($product['id']);
-            if ($pros->status !== 'approved') {
+        // 2) حذف العناصر القديمة
+        $order->items()->delete();
+
+        // 3) إعادة حساب السعر
+        $total_price = 0;
+
+        // 4) إضافة العناصر الجديدة وتحديث المخزون
+        foreach ($request->products as $p) {
+
+            $product = Product::lockForUpdate()->findOrFail($p['id']);
+
+            if ($product->status !== 'approved') {
                 return response()->json([
-                    'message' => 'This product cannot be modified because it is not approved yet'
+                    'message' => 'This product cannot be ordered because it is not approved yet'
                 ], 403);
             }
-            if ($product['quantity'] > $pros->stock) {
+
+            if ($p['quantity'] > $product->stock) {
                 return response()->json([
                     'message' => 'Quantity not available',
-                    'available_stock' => $pros->stock
+                    'available_stock' => $product->stock
                 ], 400);
             }
+
+            // خصم الكمية
+            $product->decrement('stock', $p['quantity']);
+
+            // حساب السعر
+            $total_price += $product->price * $p['quantity'];
+
+            // إنشاء العنصر
+            $order->items()->create([
+                'product_id' => $product->id,
+                'name'       => $product->name,
+                'price'      => $product->price,
+                'quantity'   => $p['quantity']
+            ]);
         }
 
-        //  ارجع stock للمنتجات القديمة بعد التحقق
-        foreach ($order->products as $oldProduct) {
-            $oldProduct->increment('stock', $oldProduct->pivot->quantity);
-        }
-
-        // 4️⃣ حدث order الرئيسي
-        $order->update($validated);
-
-        // حضر بيانات الـ pivot وحدث stock للمنتجات الجديدة
-        $syncData = [];
-        $total_price = 0;
-        foreach ($request->products as $product) {
-            $pros = Product::findOrFail($product['id']);
-            $pros->decrement('stock', $product['quantity']);
-            $total_price += $pros->price * $product['quantity'];
-            $syncData[$product['id']] = ['quantity' => $product['quantity']];
-        }
-
-        $order->update(['total_price' => $total_price]);
-        $order->products()->sync($syncData);
+        // 5) تحديث الطلب
+        $order->update([
+            'total_price' => $total_price,
+        ]);
 
         return response()->json([
             'message' => 'Order updated successfully',
-            'order' => $order->load('products'),
+            'order' => $order->load('items'),
         ]);
     });
 }
+
+
 public function destroy(Order $order)
 {
     $this->authorize('delete', $order);
 
     return DB::transaction(function () use ($order) {
 
-        $order->load('products');
+        // حمل العناصر
+        $order->load('items');
 
-        //  تحقق من كل المنتجات قبل الحذف (اختياري حسب requirement)
-        foreach ($order->products as $product) {
-            if ($product->status !== 'approved') {
-                return response()->json([
-                    'message' => 'This order cannot be deleted because it contains products that are not approved'
-                ], 403);
+        // ❗ رجّع المخزون فقط لو المنتج ما زال موجود
+        foreach ($order->items as $item) {
+            if ($item->product_id) {
+                $product = Product::lockForUpdate()->find($item->product_id);
+                if ($product) {
+                    $product->increment('stock', $item->quantity);
+                }
             }
         }
-        //  ارجع stock للمنتجات
-        foreach ($order->products as $product) {
-            $product->increment('stock', $product->pivot->quantity);
-        }
-        //  احذف الـ pivot records
-        $order->products()->detach();
 
-        //  احذف الـ order نفسه
+        //  احذف العناصر (order_items)
+        $order->items()->delete();
+
+        //  احذف الطلب نفسه
         $order->delete();
 
         return response()->json([
@@ -224,46 +185,66 @@ public function destroy(Order $order)
         ]);
     });
 }
-    public function index(){
-        $this->authorize('viewAny',Order::class);
-        $orders=Order::all();
-        return response()->json([
-            'message'=>'success',
-            'orders'=>$orders
-        ]);
-    }
-    public function getAllOrdersInDifferentSituations()
+
+
+    
+    public function index()
 {
     $this->authorize('viewAny', Order::class);
 
-    $orders = Order::withTrashed()
-        ->with(['products' => function ($q) {
-            $q->withPivot('quantity');
-        }])
-        ->get();
-
-    $orders = $orders->map(function ($order) {
-        return [
-            'order_id' => $order->id,
-            'is_deleted' => $order->trashed(),
-            'products' => $order->products->map(function ($product) {
-                return [
-                    'price' => $product->price,
-                    'name' => $product->name,
-                    'description' => $product->description,
-                    'id' => $product->id,
-                    'stock' => $product->stock,
-                    'quantity' => $product->pivot->quantity,
-                ];
-            })
-        ];
-    });
+    $orders = Order::with([
+        'items.product' // تحميل order items + معلومات المنتج
+    ])->get();
 
     return response()->json([
         'message' => 'success',
         'orders' => $orders
-    ], 200);
+    ]);
 }
+
+
+public function getAllOrdersInDifferentSituations()
+{
+    $this->authorize('viewAny', Order::class);
+
+    $orders = Order::withTrashed()
+        ->with([
+            'items' => function ($q) {
+                $q->withTrashed();   // مهم جداً
+            },
+            'items.product'
+        ])
+        ->get()
+        ->map(function ($order) {
+            return [
+                'order_id'   => $order->id,
+                'is_deleted' => $order->trashed(),
+
+                'items' => $order->items->map(function ($item) {
+                    return [
+                        'product_id'  => $item->product_id,
+                        'name'        => $item->name,
+                        'price'       => $item->price,
+                        'quantity'    => $item->quantity,
+                        'is_deleted'  => $item->trashed(), // إذا بدك تعرف إذا محذوف
+
+                        'product' => $item->product ? [
+                            'id'          => $item->product->id,
+                            'stock'       => $item->product->stock,
+                            'description' => $item->product->description,
+                            'status'      => $item->product->status,
+                        ] : null
+                    ];
+                })
+            ];
+        });
+
+    return response()->json([
+        'message' => 'success',
+        'orders'  => $orders
+    ]);
+}
+
 
     public function show(Order $order){
          $this->authorize('view',$order);
