@@ -164,7 +164,7 @@ public function destroy(Order $order)
         // حمل العناصر
         $order->load('items');
 
-        // ❗ رجّع المخزون فقط لو المنتج ما زال موجود
+        //  رجّع المخزون فقط لو المنتج ما زال موجود
         foreach ($order->items as $item) {
             if ($item->product_id) {
                 $product = Product::lockForUpdate()->find($item->product_id);
