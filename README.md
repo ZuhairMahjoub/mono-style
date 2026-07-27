@@ -1,66 +1,53 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+🛒 Monostyle E-Commerce Backend API
+A secure, high-performance, and concurrency-safe backend e-commerce system built with Laravel. It features robust transactional order management, a multi-tier product moderation workflow, dynamic image storage, asynchronous email notifications (WelcomeMail), flexible polymorphic authentication (supporting registered users and guests), and fine-grained authorization policies.
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+🚀 Key Technical Features
+Concurrency & Race Condition Mitigation:
 
-## About Laravel
+Uses database transactions (DB::transaction) combined with pessimistic locking (lockForUpdate()) on inventory rows during checkout, updates, and cancellations to completely prevent overselling.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Historical Data Integrity:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Caches product names and prices directly inside the order_items table at the exact time of purchase, preventing historical discrepancies if original products are modified or soft-deleted later.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Product Moderation Workflow:
 
-## Learning Laravel
+Newly submitted products default to a pending status and remain hidden from public consumers until explicitly reviewed and approved (approved) or rejected (rejected) by an administrator.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Polymorphic / Guest Checkout Support:
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Dynamically handles orders for both authenticated Laravel Sanctum users and guest shoppers (collecting customer name and email via conditional validation rules).
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Advanced Soft Deletes & Auditing:
 
-## Laravel Sponsors
+Traverses deep relationships using withTrashed() to generate comprehensive audit reports tracking active vs. archived statuses across orders, items, and products.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Strict RBAC & Policy Authorization:
 
-### Premium Partners
+Enforces role-based access control using custom middlewares (RoleMiddleware, IsAdmin) alongside model policies (OrderPolicy, ProductPolicy, UserPolicy).
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+Automated Notifications:
 
-## Contributing
+Dispatches asynchronous welcome emails (WelcomeMail) upon user registration.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+🛠️ Architecture & Core Components Breakdown
+1. Controllers
+OrderController: Manages atomic checkouts, stock locks, updates, soft-deletes, restorations, and deep-audit listing (getAllOrdersInDifferentSituations).
 
-## Code of Conduct
+ProductController: Handles multi-attribute creation, image uploads with asset URL mapping, many-to-many category syncing (extra_categories), public filtering, and admin moderation endpoints.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+UserController: Manages registration (with secure Bcrypt hashing and dispatching WelcomeMail), token-based authentication (Login/Logout), user profile modifications, and hierarchical category traversal.
 
-## Security Vulnerabilities
+2. Middlewares & Policies
+RoleMiddleware / IsAdmin: Secures administrative routes by validating user roles against incoming requests.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+OrderPolicy / ProductPolicy / UserPolicy: Implements resource-level authorization ensuring users can only view, update, or delete their own data unless acting as an administrator.
 
-## License
+3. Form Requests & Mailables
+OrderStoreRequest / OrderUpdateRequest: Validates multi-item structures with conditional guest rules.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+ProductStoreRequest / ProductUpdateRequest: Validates pricing, stock, images, and extra categories.
+
+UserStoreRequest / UserUpdateRequest: Enforces strict password complexity rules (RulesPassword) and email uniqueness checks.
+
+WelcomeMail: Mailable class handling the welcome email template (emails.welcomeUser) sent upon successful user registration.
