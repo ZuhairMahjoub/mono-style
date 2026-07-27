@@ -1,7 +1,7 @@
-🛒 Monostyle E-Commerce Backend API
+ Monostyle E-Commerce Backend API
 A secure, high-performance, and concurrency-safe backend e-commerce system built with Laravel. It features robust transactional order management, a multi-tier product moderation workflow, dynamic image storage, asynchronous email notifications (WelcomeMail), flexible polymorphic authentication (supporting registered users and guests), and fine-grained authorization policies.
 
-🚀 Key Technical Features
+ Key Technical Features
 Concurrency & Race Condition Mitigation:
 
 Uses database transactions (DB::transaction) combined with pessimistic locking (lockForUpdate()) on inventory rows during checkout, updates, and cancellations to completely prevent overselling.
@@ -30,7 +30,7 @@ Automated Notifications:
 
 Dispatches asynchronous welcome emails (WelcomeMail) upon user registration.
 
-🛠️ Architecture & Core Components Breakdown
+ Architecture & Core Components Breakdown
 1. Controllers
 OrderController: Manages atomic checkouts, stock locks, updates, soft-deletes, restorations, and deep-audit listing (getAllOrdersInDifferentSituations).
 
