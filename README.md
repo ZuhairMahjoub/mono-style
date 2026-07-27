@@ -1,36 +1,53 @@
-E-commerce Management System 
-A robust and secure backend API for an e-commerce platform, built with Laravel. This project focuses on high-performance stock management, secure authentication, and fine-grained authorization.
- Tech Stack
-Framework: Laravel (PHP 8.x)
+🛒 Monostyle E-Commerce Backend API
+A secure, high-performance, and concurrency-safe backend e-commerce system built with Laravel. It features robust transactional order management, a multi-tier product moderation workflow, dynamic image storage, asynchronous email notifications (WelcomeMail), flexible polymorphic authentication (supporting registered users and guests), and fine-grained authorization policies.
 
-Database: MySQL
+🚀 Key Technical Features
+Concurrency & Race Condition Mitigation:
 
-Authentication: Laravel Sanctum (Token-based API authentication)
+Uses database transactions (DB::transaction) combined with pessimistic locking (lockForUpdate()) on inventory rows during checkout, updates, and cancellations to completely prevent overselling.
 
-Mail Services: SMTP Integration for automated transactional emails (Welcome/Notifications)
+Historical Data Integrity:
 
-Security: Database Transactions, Policies (Authorization), and Request Validation
+Caches product names and prices directly inside the order_items table at the exact time of purchase, preventing historical discrepancies if original products are modified or soft-deleted later.
 
-Storage: Local Disk Storage for media management
+Product Moderation Workflow:
 
- Engineering Highlights
-Concurrency Control: Implemented lockForUpdate() to prevent race conditions and ensure data integrity during inventory updates.
+Newly submitted products default to a pending status and remain hidden from public consumers until explicitly reviewed and approved (approved) or rejected (rejected) by an administrator.
 
-Transaction Management: Used DB::transaction to ensure atomic operations, preventing partial updates during order processing.
+Polymorphic / Guest Checkout Support:
 
-Authorization: Implemented custom Policies for Products, Orders, and Users to maintain strict Role-Based Access Control (RBAC).
+Dynamically handles orders for both authenticated Laravel Sanctum users and guest shoppers (collecting customer name and email via conditional validation rules).
 
-Notification System: Integrated SMTP to handle automated email communications, ensuring reliable delivery of user-related transactional emails.
+Advanced Soft Deletes & Auditing:
 
-Code Maintenance: Followed SOLID principles and centralized validation through dedicated FormRequests.
+Traverses deep relationships using withTrashed() to generate comprehensive audit reports tracking active vs. archived statuses across orders, items, and products.
 
- Key Features
-Inventory Management: Intelligent stock decrementing with real-time stock validation and status-based product approvals (pending, approved, rejected).
+Strict RBAC & Policy Authorization:
 
-Order System: Support for both registered users and guests with seamless transition between different user roles.
+Enforces role-based access control using custom middlewares (RoleMiddleware, IsAdmin) alongside model policies (OrderPolicy, ProductPolicy, UserPolicy).
 
-Secure User Lifecycle: automated welcome emails via SMTP upon registration and robust profile management.
+Automated Notifications:
 
-Secure Deletions: Implemented soft-delete checks and cascading logic to ensure data integrity.
+Dispatches asynchronous welcome emails (WelcomeMail) upon user registration.
 
-Image Handling: Automated image management including secure storage and dynamic URL generation via Models (Accessors).
+🛠️ Architecture & Core Components Breakdown
+1. Controllers
+OrderController: Manages atomic checkouts, stock locks, updates, soft-deletes, restorations, and deep-audit listing (getAllOrdersInDifferentSituations).
+
+ProductController: Handles multi-attribute creation, image uploads with asset URL mapping, many-to-many category syncing (extra_categories), public filtering, and admin moderation endpoints.
+
+UserController: Manages registration (with secure Bcrypt hashing and dispatching WelcomeMail), token-based authentication (Login/Logout), user profile modifications, and hierarchical category traversal.
+
+2. Middlewares & Policies
+RoleMiddleware / IsAdmin: Secures administrative routes by validating user roles against incoming requests.
+
+OrderPolicy / ProductPolicy / UserPolicy: Implements resource-level authorization ensuring users can only view, update, or delete their own data unless acting as an administrator.
+
+3. Form Requests & Mailables
+OrderStoreRequest / OrderUpdateRequest: Validates multi-item structures with conditional guest rules.
+
+ProductStoreRequest / ProductUpdateRequest: Validates pricing, stock, images, and extra categories.
+
+UserStoreRequest / UserUpdateRequest: Enforces strict password complexity rules (RulesPassword) and email uniqueness checks.
+
+WelcomeMail: Mailable class handling the welcome email template (emails.welcomeUser) sent upon successful user registration.
